@@ -13,6 +13,30 @@ class BookingRepo extends CrudRepo {
         console.log('I\'m from repo file');
         return response;
     }
+
+    async get(data, transaction) {
+        const response = await this.model.findByPk(data, { transaction: transaction });
+
+        if(!response) {
+            throw new AppError('Not able to found the resource', StatusCodes.NOT_FOUND);
+        }
+
+        return response;
+    }
+
+    async update(id, data, transaction) {
+        const [affectedRows] = await this.model.update(data, {
+            where: {
+                id: id
+            }
+        }, { transaction: transaction });
+
+        if(affectedRows === 0) {
+            throw new AppError('Not able to found the resource', StatusCodes.NOT_FOUND);
+        }
+
+        return `You successfully updated and here's the affected rows ${affectedRows}`;
+    }
 }
 
 module.exports = BookingRepo;
