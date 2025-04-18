@@ -1,7 +1,10 @@
 const { StatusCodes } = require('http-status-codes');
+const { Enums } = require('../utils/common');
+const { CANCELLED, BOOKED } = Enums.BOOKING_STATUS;
 
 const { Booking } = require('../models');
 const CrudRepo = require('./crud-repo');
+const { Op } = require('sequelize');
 
 class BookingRepo extends CrudRepo {
     constructor() {
@@ -16,7 +19,6 @@ class BookingRepo extends CrudRepo {
 
     async get(data, transaction) {
         const response = await this.model.findByPk(data, { transaction: transaction });
-
         if(!response) {
             throw new AppError('Not able to found the resource', StatusCodes.NOT_FOUND);
         }
@@ -36,6 +38,31 @@ class BookingRepo extends CrudRepo {
         }
 
         return `You successfully updated and here's the affected rows ${affectedRows}`;
+    }
+
+    async cancelOldBookings(timestamp) {
+        const response = await Booking.update({ status: CANCELLED}, {
+            where: {
+                [Op.and]: [
+                    {
+                        createdAt: {
+                            [Op.lt]: timestamp
+                        }
+                    },
+                    {
+                        status: {
+                            [Op.ne]: BOOKED
+                        }
+                    },
+                    {
+                        status: {
+                            [Op.ne]: CANCELLED
+                        }
+                    }
+                ]
+            }
+        });
+        return response;
     }
 }
 

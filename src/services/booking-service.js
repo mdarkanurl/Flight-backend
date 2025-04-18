@@ -21,7 +21,6 @@ async function createBooking(data) {
 
         const totalBillingAmount = data.numOfSeats * flightData.price;
         const bookingPayload = { ...data, totalCost: totalBillingAmount };
-        console.log('Is it here');
         const booking = await bookingRepo.create(bookingPayload, transaction);
 
         await axios.patch(`${ServerConfig.FLIGHT_URL}/api/v1/flights/${data.flightId}/seats`, {
@@ -42,11 +41,12 @@ async function makePayment( data ) {
         const bookingDetails = await bookingRepo.get(data.bookingId);
 
         if(bookingDetails.status === CANCELLED) {
-            throw new AppError('The booking has expired', StatusCodes.BAD_REQUEST); 
+            throw new AppError('The booking has CANCELLED', StatusCodes.BAD_REQUEST);
         }
 
-        const bookingTime = new Date(bookingDetails.createdAt);
-        const currentTime = new Date();
+        const bookingTime = new Date(bookingDetails.createdAt).getMilliseconds();
+        const currentTime = new Date().getMilliseconds();
+        console.log(`current ${currentTime} and booking ${bookingTime}`)
 
         if (currentTime - bookingTime > 300000) {
             await cancellBooking(data.bookingId);
@@ -69,21 +69,16 @@ async function makePayment( data ) {
     }
 }
 
-async function cancellBooking(data) {
+async function cancellBooking(bookingId) {
     const transaction = await db.sequelize.transaction();
     try {
-        const bookingDetails = await bookingRepo.get(data.bookingId, transaction);
-
-        if(bookingDetails.status === CANCELLED) {
-            await transaction.commit();
-            return true;
-        }
+        const bookingDetails = await bookingRepo.get(bookingId, transaction);
 
         await axios.patch(`${ServerConfig.FLIGHT_URL}/api/v1/flights/${bookingDetails.flightId}/seats`, {
             seats: bookingDetails.numOfSeats,
             dec: 0
         });
-        await bookingRepo.update(data.bookingId, { status: CANCELLED }, transaction);
+        await bookingRepo.update(bookingId, { status: CANCELLED }, transaction);
         await transaction.commit();
     } catch (error) {
         await transaction.rollback();
@@ -91,7 +86,19 @@ async function cancellBooking(data) {
     }
 }
 
+async function cancelOldBookings() {
+    try {
+        const time = new Date( Date.now() -1000 * 300); // 5 mins ago
+        const response = await bookingRepo.cancelOldBookings(time);
+        console.log('Inside service');
+        return response;
+    } catch (error) {
+        console.log(error)
+    }
+}
+
 module.exports = {
     createBooking,
-    makePayment
+    makePayment,
+    cancelOldBookings
 }
